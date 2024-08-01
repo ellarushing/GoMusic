@@ -4,8 +4,9 @@ import (
 	"fmt" //enables formatting I/O funcs
 	"log" // logging error messages
 	"net/http" //making HTTP requests & handling responses
-
 	"github.com/zmb3/spotify" // Go client library for Spotify Web API
+	"encoding/json"
+	"strings"
 )
 
 const (
@@ -33,38 +34,49 @@ func main() {
 		fmt.Fprintf(w, "Found your playlists: %+v", playlists)
 	})
 	log.Fatal(http.ListenAndServe(":8888", nil))
-
 }
 
 
-type playlist struct {
-	Name string `json: "name"`
-	Owner string `json: "owner"`
-	Tracks []string `json: "owner"`
-	Type string `json: "type"`
-	Uri string `json: "uri"`
-
+type Playlist struct {
+	Name string `json:"name"`
+	Tracks struct {
+		Href string `json:"href"`
+		Total int `json:"total"`
+		Items []Track `json:"items"`
+	} `json:"tracks"`
+	Type string `json:"type"`
+	URI string `json:"uri"`
 }
 
-var playlists = []playlist {
-	{ Name:   "Summer Hits",
-	Owner:  "User123",
-	Tracks: []string{"spotify:track:1", "spotify:track:2", "spotify:track:3"},
-	Type:   "Public",
-	Uri:    "spotify:playlist:1",
-	},
-	{
-	Name:   "Workout",
-	Owner:  "User456",
-	Tracks: []string{"spotify:track:4", "spotify:track:5", "spotify:track:6"},
-	Type:   "Private",
-	Uri:    "spotify:playlist:2",
-	},
-	{
-	Name:   "Chill Vibes",
-	Owner:  "User789",
-	Tracks: []string{"spotify:track:7", "spotify:track:8", "spotify:track:9"},
-	Type:   "Public",
-	Uri:    "spotify:playlist:3",
-	},
+type Track struct {
+	Name string `json:"name"`
+	Artists []struct {
+		Name string `json:"name"`
+	} `json:"artists"`
+}
+
+type PlaylistItems struct {
+	Items []Playlist `json:"items"`
+}
+
+func formatUserPlaylists(jsonData []byte) (string, error) {
+	var playlists PlaylistItems
+	err := json.Unmarshal(jsonData, &playlists)
+	if err != nil {
+		return "", err
+	}
+	var output string
+	for _, playlist := range playlists.Items {
+		output += fmt.Sprintf("Playlist: %s\n", playlist.Name)
+		output += "Tracks\n"
+		for _, track := range playlist.Tracks.Items {
+			artists := make([]string, len(track.Artists))
+			for i, artist := range track.Artists {
+				artists[i] = artist.Name
+			}
+			output += fmt.Sprintf("- %s by %s\n", track.Name, strings.Join(artists, ", "))
+			
+		}
+	}
+	return output, nil
 }
