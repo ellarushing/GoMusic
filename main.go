@@ -5,12 +5,13 @@ import (
 	"fmt"      //enables formatting I/O funcs
 	"log"      // logging error messages
 	"net/http" //making HTTP requests & handling responses
+	"os"
 	"strings"
 	"sync"
-//	"github.com/joho/godotenv" // for using .env for confidential info
-	"golang.org/x/oauth2"
+	"github.com/joho/godotenv" // for using .env for confidential info
 	"github.com/rs/cors"
 	"github.com/zmb3/spotify" // Go client library for Spotify Web API
+	"golang.org/x/oauth2"
 )
 
 const (
@@ -30,23 +31,36 @@ type Playlists struct {
 }
 
 func main() {
+
+	// get info from .env file
+	err := godotenv.Load()
+	if err != nil {
+		log.Fatalf("Error loading .env file: %v", err)
+	}
+	
 	// for Spotify API Authentication
-	auth := spotify.NewAuthenticator(redirectURI, spotify.ScopePlaylistReadPrivate)
-	auth.SetAuthInfo("719bcf23f8cd44618e8b510bd4798dd2", "5f1d4527805b41a09fc6cfe8c0dc1113")
-
-	// err := godotenv.Load()
-	// if err != nil {
-	// 	log.Fatalf("Error loading .env file: %v", err)
-	// }
-
+	auth = spotify.NewAuthenticator(redirectURI, spotify.ScopePlaylistReadPrivate)
+	auth.SetAuthInfo(os.Getenv("SPOTIFY_CLIENT_ID"), os.Getenv("SPOTIFY_CLIENT_SECRET"))
 
 	// get login url
-	url := auth.AuthURL("state-token") // gets URL where user logins and authorizes the application
+	url := auth.AuthURL(state) // gets URL where user logins and authorizes the application
 	fmt.Println("Please log in to Spotify by visiting the following page in your browser:" , url)
+	
 	// HTTP server to listen on callback URL
-	http.HandleFunc("/callback", func(w http.ResponseWriter, r *http.Request) {
-		log.Println("Received request for /callback")
-		token, err := auth.Token("state-token", r) // exchange authorization code for access token
+	http.HandleFunc("/callback", handleCallback)
+	http.HandleFunc("/playlists", handlePlaylists)
+
+	handler := cors.Default().Handler(http.DefaultServeMux)
+
+	log.Println("Starting server at :8888")
+	if err := http.ListenAndServe(":8888", handler); err != nil {
+		log.Fatal("Server failed to start:", err)
+	}
+}
+
+func handleCallback(w http.ResponseWriter, r *http.Request) {
+	log.Println("Received request for /callback")
+		token, err := auth.Token(state, r) // exchange authorization code for access token
 		if err != nil { // error message
 			http.Error(w, "Couldn't get token", http.StatusForbidden)
 			log.Fatal(err)
@@ -66,18 +80,7 @@ func main() {
 			log.Println("Failed to encode playlists:", err)
 		}
 		userToken = token;
-	})
-
-	http.HandleFunc("/playlists", handlePlaylists)
-
-	handler := cors.Default().Handler(http.DefaultServeMux)
-
-	log.Println("Starting server at :8888")
-	if err := http.ListenAndServe(":8888", handler); err != nil {
-		log.Fatal("Server failed to start:", err)
-	}
 }
-
 
 func handlePlaylists(w http.ResponseWriter, r *http.Request) {
 	if userToken == nil {
