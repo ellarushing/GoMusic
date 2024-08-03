@@ -7,7 +7,7 @@ import (
 	"net/http" //making HTTP requests & handling responses
 	"strings"
 	"sync"
-	"github.com/joho/godotenv" // for using .env for confidential info
+//	"github.com/joho/godotenv" // for using .env for confidential info
 	"golang.org/x/oauth2"
 	"github.com/rs/cors"
 	"github.com/zmb3/spotify" // Go client library for Spotify Web API
