@@ -19,19 +19,38 @@ const (
 )
 
 var (
-	auth = spotify.NewAuthenticator(redirectURI, spotify.ScopePlaylistReadPrivate)
+	auth = spotify.NewAuthenticator(redirectURI, spotify.ScopePlaylistReadPrivate, spotify.ScopeUserTopRead)
 	state = "state-token"
-	playlists = &Playlist{}
+	playlists = &Playlists{}
+	topArtists = &TopArtists{}
+	topTracks = &TopTracks{}
+	combinedData = &CombinedData{}
 	userToken *oauth2.Token // this is to connect to React application
 )
 
+// used for managing concurrent access & store playlist data
 type Playlists struct {
+	sync.Mutex // lock to protect shared data from being accessed by multiple go-routines
+	Data *spotify.SimplePlaylistPage // pointer to spotify playlist obj to hold playlist data
+}
+
+type TopArtists struct {
 	sync.Mutex
-	Data *spotify.SimplePlaylistPage
+	Data *spotify.FullArtistPage // multiple top artists data
+}
+
+type TopTracks struct {
+	sync.Mutex
+	Data *spotify.FullTrackPage // holds multiple top tracks data
+}
+
+type CombinedData struct {
+	Playlists *spotify.SimplePlaylistPage `json:"playlists"`
+	TopArtists *spotify.FullArtistPage `json:"topArtists"`
+	TopTracks *spotify.FullTrackPage `json:"topTracks"`
 }
 
 func main() {
-
 	// get info from .env file
 	err := godotenv.Load()
 	if err != nil {
@@ -39,7 +58,6 @@ func main() {
 	}
 	
 	// for Spotify API Authentication
-	auth = spotify.NewAuthenticator(redirectURI, spotify.ScopePlaylistReadPrivate)
 	auth.SetAuthInfo(os.Getenv("SPOTIFY_CLIENT_ID"), os.Getenv("SPOTIFY_CLIENT_SECRET"))
 
 	// get login url
@@ -49,6 +67,7 @@ func main() {
 	// HTTP server to listen on callback URL
 	http.HandleFunc("/callback", handleCallback)
 	http.HandleFunc("/playlists", handlePlaylists)
+	http.HandleFunc("/topArtists", handleTopArtists)
 
 	handler := cors.Default().Handler(http.DefaultServeMux)
 
@@ -68,27 +87,46 @@ func handleCallback(w http.ResponseWriter, r *http.Request) {
 		log.Println("Token received")
 
 		client := auth.NewClient(token)
-		playlists, err := client.CurrentUsersPlaylists() // gets user's playlists
+		playlists.Data, err = client.CurrentUsersPlaylists() // gets user's playlists
 		if err != nil {
 			log.Fatalf("Failed to get playlist: %v", err)
 		}
 		log.Println("Playlists fetched")
-		//fmt.Fprintf(w, "Found your playlists: %+v", playlists)
+
+		topArtists.Data, err = client.CurrentUsersTopArtists() // get user's top artists
+		if err != nil {
+			log.Fatalf("Failed to get Top Artists: %v", err)
+		}
+		log.Println("Top Artists fetched")
+
+		combinedData := CombinedData {
+			Playlists: playlists.Data,
+			TopArtists: topArtists.Data,
+		}
+
+		if combinedData.Playlists == nil {
+			log.Fatal("Failed to save Playlist data into combined struct")
+		}
+		if combinedData.TopArtists == nil {
+			log.Fatal("Failed to save TopArtists data into combined struct")
+		}
+		log.Println("Combined Data fetched")
+
 
 		w.Header().Set("Content-Type", "application/json")
-		if err := json.NewEncoder(w).Encode(playlists); err != nil {
-			log.Println("Failed to encode playlists:", err)
+		if err := json.NewEncoder(w).Encode(combinedData); err != nil {
+			log.Println("Failed to encode combinedData:", err)
 		}
 		userToken = token;
 }
 
 func handlePlaylists(w http.ResponseWriter, r *http.Request) {
 	if userToken == nil {
-		http.Error(w, "Not authenitcated", http.StatusUnauthorized);
+		http.Error(w, "Not authenticated", http.StatusUnauthorized);
 		return
 	}
 
-	client := auth.NewClient((userToken))
+	client := auth.NewClient(userToken)
 	playlists, err := client.CurrentUsersPlaylists()
 	if err != nil {
 		http.Error(w, "Failed to fetch playlists", http.StatusInternalServerError)
@@ -99,6 +137,31 @@ func handlePlaylists(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(playlists)
 }
 
+// need this to somehow check every week and regather the data
+// to actively recheck and reevaluate
+func handleTopArtists(w http.ResponseWriter, r *http.Request) {
+	if userToken == nil {
+		http.Error(w, "Not authenticated", http.StatusUnauthorized)
+		return
+	}
+	client := auth.NewClient(userToken)
+	topArtists, err := client.CurrentUsersTopArtists()
+	if err != nil {
+		http.Error(w, "Failed to get Top Artists", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(topArtists)
+}
+
+func handleTopTracks(w http.ResponseWriter, r *http.Request) {
+
+}
+
+func handleListeningHistory(w http.ResponseWriter, r *http.Request) {
+
+}
 
 type Playlist struct {
 	Name string `json:"name"`
@@ -143,3 +206,4 @@ func formatUserPlaylists(jsonData []byte) (string, error) {
 	}
 	return output, nil
 }
+
