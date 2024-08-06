@@ -6,7 +6,7 @@ import (
 	"log"      // logging error messages
 	"net/http" //making HTTP requests & handling responses
 	"os"
-	"strings"
+	//"strings"
 	"sync"
 	"github.com/joho/godotenv" // for using .env for confidential info
 	"github.com/rs/cors"
@@ -46,10 +46,123 @@ type TopTracks struct {
 }
 
 type CombinedData struct {
-	Playlists *spotify.SimplePlaylistPage `json:"playlists"`
-	TopArtists *spotify.FullArtistPage `json:"topArtists"`
-	TopTracks *spotify.FullTrackPage `json:"topTracks"`
+	Playlists *FormattedPlaylists `json:"playlists"`
+	TopArtists *FormattedTopArtists `json:"topArtists"`
+	TopTracks *FormattedTopTracks `json:"topTracks"`
 }
+
+
+// used for formatting & parsing the json data
+type Artist struct {
+	Name string `json:"name"`
+	Popularity int `json:"popularity"`
+	Genres []string `json:"genres"`
+}
+
+func formatArtist(spotifyArtist spotify.FullArtist) Artist {
+	return Artist {
+		Name: spotifyArtist.Name,
+		Popularity: spotifyArtist.Popularity,
+		Genres: spotifyArtist.Genres,
+	}
+}
+
+type FormattedTopArtists struct {
+	Artists []Artist `json:"artist"`
+}
+
+func formatTopArtists(spotifyArtists *spotify.FullArtistPage) FormattedTopArtists {
+	formattedArtists := make([]Artist, len(spotifyArtists.Artists))
+	for i, artist := range spotifyArtists.Artists {
+		formattedArtists[i] = formatArtist(artist)
+	}
+	return FormattedTopArtists{Artists: formattedArtists}
+}
+
+type Track struct {
+	Name string `json:"name"`
+	Popularity int `json:"popularity"`
+	Artists []Artist `json:"artists"`
+	Album Album `json:"album"`
+	// do you want the preview URL?
+}
+
+func formatTrack(spotifyTrack spotify.FullTrack) Track {
+	artists := make([]Artist, len(spotifyTrack.Artists))
+	for i, artist := range spotifyTrack.Artists {
+		artists[i] = Artist {
+			Name: artist.Name,
+		}
+	}
+	return Track {
+		Name: spotifyTrack.Name,
+		Popularity: spotifyTrack.Popularity,
+		Album: Album{
+			Name: spotifyTrack.Album.Name,
+			ReleaseDate: spotifyTrack.Album.ReleaseDate,
+			Artists: artists,
+		},
+	}
+}
+
+
+func formatTopTracks(spotifyTracks *spotify.FullTrackPage) FormattedTopTracks {
+	formattedTracks := make([]Track, len(spotifyTracks.Tracks))
+	for i, track := range spotifyTracks.Tracks {
+		formattedTracks[i] = formatTrack(track)
+	}
+	return FormattedTopTracks{Tracks: formattedTracks}
+}
+
+type FormattedTopTracks struct {
+	Tracks []Track `json:"track"`
+}
+
+type Playlist struct {
+	Name string `json:"name"`
+	Owner []Owner `json:"owner"`
+	NoTracks int `json:"track_count"`
+}
+
+type FormattedPlaylists struct {
+	Playlists []Playlist `json:"playlist"`
+}
+
+func formatAllPlaylists(spotifyPlaylist *spotify.SimplePlaylistPage) FormattedPlaylists {
+	playlists := make([]Playlist, len(spotifyPlaylist.Playlists))
+	for i, playlist := range spotifyPlaylist.Playlists {
+		owner := []Owner{
+			{
+				Display_Name: playlist.Owner.DisplayName,
+			},
+		}
+		playlists[i] = Playlist {
+			Name: playlist.Name,
+			Owner: owner,
+			NoTracks: int(playlist.Tracks.Total),
+		}
+	}
+	return FormattedPlaylists{Playlists: playlists}
+}
+
+type Album struct {
+	Name string `json:"name"`
+	ReleaseDate string `json:"release_date"`
+	Artists []Artist `json:"artists"`
+}
+type TotalData struct {
+	TopArtists []Artist `json:"top_artists"`
+	TopTracks []Track `json:"top_tracks"`
+	Playlists []Playlist `json:"playlists`
+}
+
+type Owner struct {
+	Display_Name string `json:"display_name"`
+}
+
+type ListeningHistory struct {
+}
+
 
 func main() {
 	// get info from .env file
@@ -67,9 +180,9 @@ func main() {
 	
 	// HTTP server to listen on callback URL
 	http.HandleFunc("/callback", handleCallback)
-	http.HandleFunc("/playlists", handlePlaylists)
-	http.HandleFunc("/topArtists", handleTopArtists)
-	http.HandleFunc("/topTracks", handleTopTracks)
+	//http.HandleFunc("/playlists", handlePlaylists)
+	//http.HandleFunc("/topArtists", handleTopArtists)
+	//http.HandleFunc("/topTracks", handleTopTracks)
 
 	handler := cors.Default().Handler(http.DefaultServeMux)
 
@@ -87,13 +200,14 @@ func handleCallback(w http.ResponseWriter, r *http.Request) {
 		log.Fatal(err)
 	}
 	log.Println("Token received")
-
-	// dealing with playlists
 	client := auth.NewClient(token)
+
+
 	playlists.Data, err = client.CurrentUsersPlaylists() // gets user's playlists
 	if err != nil {
 		log.Fatalf("Failed to get playlist: %v", err)
 	}
+	formattedPlaylists := formatAllPlaylists(playlists.Data)
 	log.Println("Playlists Successful")
 
 	// dealing with top artists
@@ -101,6 +215,7 @@ func handleCallback(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		log.Fatalf("Failed to get Top Artists: %v", err)
 	}
+	formattedTopArtists := formatTopArtists(topArtists.Data)
 	log.Println("Top Artists Successful")
 
 	// dealing with top tracks
@@ -108,12 +223,13 @@ func handleCallback(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		log.Fatalf("Failed to get Top Tracks: %v", err)
 	}
+	formattedTopTracks := formatTopTracks(topTracks.Data)
 	log.Println("Top Tracks Successful")
 
 	*combinedData = CombinedData {
-		Playlists: playlists.Data,
-		TopArtists: topArtists.Data,
-		TopTracks: topTracks.Data,
+		Playlists: &formattedPlaylists,
+		TopArtists: &formattedTopArtists,
+		TopTracks: &formattedTopTracks,
 	}
 
 	if combinedData.Playlists == nil {
@@ -140,90 +256,43 @@ func handleCallback(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func handlePlaylists(w http.ResponseWriter, r *http.Request) {
-	client := auth.NewClient(userToken)
-	playlists, err := client.CurrentUsersPlaylists()
-	if err != nil {
-		http.Error(w, "Failed to fetch playlists", http.StatusInternalServerError)
-		return
-	}
+// func handlePlaylists(w http.ResponseWriter, r *http.Request) {
+// 	client := auth.NewClient(userToken)
+// 	playlists, err := client.CurrentUsersPlaylists()
+// 	if err != nil {
+// 		http.Error(w, "Failed to fetch playlists", http.StatusInternalServerError)
+// 		return
+// 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(playlists)
-}
+// 	w.Header().Set("Content-Type", "application/json")
+// 	json.NewEncoder(w).Encode(playlists)
+// }
+// // need this to somehow check every week and regather the data
+// // to actively recheck and reevaluate
+// func handleTopArtists(w http.ResponseWriter, r *http.Request) {
+// 	client := auth.NewClient(userToken)
+// 	topArtists, err := client.CurrentUsersTopArtists()
+// 	if err != nil {
+// 		http.Error(w, "Failed to get Top Artists", http.StatusInternalServerError)
+// 		return
+// 	}
 
-// need this to somehow check every week and regather the data
-// to actively recheck and reevaluate
-func handleTopArtists(w http.ResponseWriter, r *http.Request) {
-	client := auth.NewClient(userToken)
-	topArtists, err := client.CurrentUsersTopArtists()
-	if err != nil {
-		http.Error(w, "Failed to get Top Artists", http.StatusInternalServerError)
-		return
-	}
+// 	w.Header().Set("Content-Type", "application/json")
+// 	json.NewEncoder(w).Encode(topArtists)
+// }
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(topArtists)
-}
+// func handleTopTracks(w http.ResponseWriter, r *http.Request) {
+// 	client := auth.NewClient(userToken)
+// 	topTracks, err := client.CurrentUsersTopTracks()
+// 	if err != nil {
+// 		http.Error(w, "Failed to get Top Tracks", http.StatusInternalServerError)
+// 		return
+// 	}
 
-func handleTopTracks(w http.ResponseWriter, r *http.Request) {
-	client := auth.NewClient(userToken)
-	topTracks, err := client.CurrentUsersTopTracks()
-	if err != nil {
-		http.Error(w, "Failed to get Top Tracks", http.StatusInternalServerError)
-		return
-	}
+// 	w.Header().Set("Content-Type", "application/json")
+// 	json.NewEncoder(w).Encode(topTracks)
+// }
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(topTracks)
+// func handleListeningHistory(w http.ResponseWriter, r *http.Request) {
 
-}
-
-func handleListeningHistory(w http.ResponseWriter, r *http.Request) {
-
-}
-
-type Playlist struct {
-	Name string `json:"name"`
-	Tracks struct {
-		Href string `json:"href"`
-		Total int `json:"total"`
-		Items []Track `json:"items"`
-	} `json:"tracks"`
-	Type string `json:"type"`
-	URI string `json:"uri"`
-}
-
-type Track struct {
-	Name string `json:"name"`
-	Artists []struct {
-		Name string `json:"name"`
-	} `json:"artists"`
-}
-
-type PlaylistItems struct {
-	Items []Playlist `json:"items"`
-}
-
-func formatUserPlaylists(jsonData []byte) (string, error) {
-	var playlists PlaylistItems
-	err := json.Unmarshal(jsonData, &playlists)
-	if err != nil {
-		return "", err
-	}
-	var output string
-	for _, playlist := range playlists.Items {
-		output += fmt.Sprintf("Playlist: %s\n", playlist.Name)
-		output += "Tracks\n"
-		for _, track := range playlist.Tracks.Items {
-			artists := make([]string, len(track.Artists))
-			for i, artist := range track.Artists {
-				artists[i] = artist.Name
-			}
-			output += fmt.Sprintf("- %s by %s\n", track.Name, strings.Join(artists, ","))
-			
-		}
-	}
-	return output, nil
-}
-
+// }
