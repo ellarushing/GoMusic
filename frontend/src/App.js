@@ -5,7 +5,10 @@ import './App.css'
 
 
 function App() {
-  const [playlists, setPlaylists] = useState([]);
+  const [playlists, setPlaylists] = useState([]); // stores playlist data
+  const [loading, setLoading] = useState(true);
+
+
   // useState Hook -> takes initial state value as arg and returns an
   // array w/two elements: curr state value (playlists), func to update state value (setPlaylists)
 
@@ -18,7 +21,7 @@ function App() {
         console.log('Fetched data:', result.data); // Log the fetched data
         if(result.data.items) {
           // use setPlaylists to get data
-          setPlaylists(result.data.items);
+          setPlaylists(result.data.playlists.playlist);
           console.log('success')
         } else {
           console.warn('No items found in data: ', result.data);
