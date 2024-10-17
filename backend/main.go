@@ -182,9 +182,6 @@ func loadEnv() {
 	clientID = os.Getenv("SPOTIFY_CLIENT_ID")
 	clientSecret = os.Getenv("SPOTIFY_CLIENT_SECRET")
 
-	log.Printf("Client ID: %s", clientID)
-	log.Printf("Client Secret: %s", clientSecret)
-
 	if len(clientID) == 0 || len(clientSecret) == 0 {
 		log.Fatal("SPOTIFY_CLIENT_ID or SPOTIFY_CLIENT_SECRET is not set")
 	}
