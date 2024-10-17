@@ -246,6 +246,7 @@ func handleCallback(w http.ResponseWriter, r *http.Request) {
 
 	httpClient := authenticator.Client(r.Context(), token)
 	client := spotify.New(httpClient)
+	userToken = token
 
 	user, err := client.CurrentUser(r.Context())
 
