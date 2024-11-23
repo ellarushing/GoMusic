@@ -5,6 +5,7 @@ import './App.css'
 
 
 function App() {
+
   const [playlists, setPlaylists] = useState([]);
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(true); // diff loading
@@ -23,6 +24,7 @@ function App() {
         // use setPlaylists to get data
         // setPlaylists(result.data.items);
           setPlaylists(result.data.playlists.playlists)
+
           console.log('success')
         } else {
           setError('No playlist data found in response');

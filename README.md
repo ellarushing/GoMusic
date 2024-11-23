@@ -15,5 +15,4 @@ Backend:
   
 Frontend:
 + React: Interactive UI
-+ D3.js: Visuals
-+ WebSockets: Real-time updates
+
