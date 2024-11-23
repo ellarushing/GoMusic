@@ -252,65 +252,7 @@ func handleCallback(w http.ResponseWriter, r *http.Request) {
 	// Redirect to front end
 	http.Redirect(w, r, "http://localhost:3000", http.StatusSeeOther)
 
-	//log.Println("Token received")
-	//client := auth.NewClient(token)
-
-	/*
-
-
-	playlists.Data, err = client.CurrentUsersPlaylists() // gets user's playlists
-	if err != nil {
-		log.Fatalf("Failed to get playlist: %v", err)
-	}
-	formattedPlaylists := formatAllPlaylists(playlists.Data)
-	log.Println("Playlists Successful")
-
-	// dealing with top artists
-	topArtists.Data, err = client.CurrentUsersTopArtists() // get user's top artists
-	if err != nil {
-		log.Fatalf("Failed to get Top Artists: %v", err)
-	}
-	formattedTopArtists := formatTopArtists(topArtists.Data)
-	log.Println("Top Artists Successful")
-
-	// dealing with top tracks
-	topTracks.Data, err = client.CurrentUsersTopTracks() // get user's top tracks
-	if err != nil {
-		log.Fatalf("Failed to get Top Tracks: %v", err)
-	}
-	formattedTopTracks := formatTopTracks(topTracks.Data)
-	log.Println("Top Tracks Successful")
-
-	*combinedData = CombinedData {
-		Playlists: &formattedPlaylists,
-		TopArtists: &formattedTopArtists,
-		TopTracks: &formattedTopTracks,
-	}
-
-	if combinedData.Playlists == nil {
-		log.Fatal("Failed to save Playlist data into combined struct")
-	}
-	if combinedData.TopArtists == nil {
-		log.Fatal("Failed to save TopArtists data into combined struct")
-	}
-	if combinedData.TopTracks == nil {
-		log.Fatal("Failed to save TopTracks data into combined struct")
-	}
-	log.Println("Combined Data fetched")
-
-
-	w.Header().Set("Content-Type", "application/json")
-	if err := json.NewEncoder(w).Encode(combinedData); err != nil {
-		log.Println("Failed to encode combinedData:", err)
-	}
-	userToken = token;
-
-	if userToken == nil {
-		http.Error(w, "Not authenticated", http.StatusUnauthorized);
-		return
-	}
-
-	*/
+	
 }
 
 
@@ -337,3 +279,4 @@ func handleCallback(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(playlists)
 }
+
